@@ -106,8 +106,7 @@ class AsynchronousLoader(object):
         # If we've reached the number of batches to return
         # or the queue is empty and the worker is dead then exit
         done = not self.worker.is_alive() and self.queue.empty()
-        done = done or self.idx >= len(self)
-        if done:
+        if done := done or self.idx >= len(self):
             self.idx = 0
             self.queue.join()
             self.worker.join()

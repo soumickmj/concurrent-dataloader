@@ -52,26 +52,23 @@ class ScratchDataset(IndexedDataset):
         # print("PATHS: ",  self.image_paths[index].split("/"))
         # class_folder_name = self.image_paths[index].split("/")[2]
 
-        if self.classes is not None:
-            # validation dataset
-            if class_folder_name.startswith("ILSV"):
-                class_folder_name = int(class_folder_name.replace(".JPEG", "").split("_")[2])
-                target = self.classes[str(class_folder_name)]
-            # target dataset
-            elif class_folder_name.startswith("n"):
-                target = self.classes[class_folder_name]["id"]
-            else:
-                print("PATHS: ",  self.image_paths[index].split("/"))
-                raise ValueError(
-                    "Unexpected file name. Training image names should start with 'n', while"
-                    " validation image paths should start with 'ILSV'."
-                )
-        else:
+        if self.classes is None:
             target = None
 
+        elif class_folder_name.startswith("ILSV"):
+            class_folder_name = int(class_folder_name.replace(".JPEG", "").split("_")[2])
+            target = self.classes[str(class_folder_name)]
+        elif class_folder_name.startswith("n"):
+            target = self.classes[class_folder_name]["id"]
+        else:
+            print("PATHS: ",  self.image_paths[index].split("/"))
+            raise ValueError(
+                "Unexpected file name. Training image names should start with 'n', while"
+                " validation image paths should start with 'ILSV'."
+            )
         image_path = self.image_paths[index]
         if self.local_path is not None:
-            image_path = self.local_path + "/" + self.image_paths[index]
+            image_path = f"{self.local_path}/{self.image_paths[index]}"
         image = Image.open(image_path)
 
         # some images in the scratch dataset seem to be in "L" instead of "RGB" mode

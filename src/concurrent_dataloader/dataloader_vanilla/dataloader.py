@@ -225,10 +225,7 @@ class DataLoader(Generic[T_co]):
         # cannot have _SingleProcessDataLoaderIter for threaded implementation
         self.num_workers = num_workers
         self.prefetch_factor = prefetch_factor
-        if pin_memory == 0:
-            self.pin_memory = False
-        else:
-            self.pin_memory = True
+        self.pin_memory = pin_memory != 0
         self.timeout = timeout
         self.worker_init_fn = worker_init_fn
         self.multiprocessing_context = multiprocessing_context
@@ -264,22 +261,19 @@ class DataLoader(Generic[T_co]):
             # option. If this turns out to be useful in future, we can re-enable
             # this, and support custom samplers that specify the assignments to
             # specific workers.
-            if shuffle is not False:
+            if shuffle:
                 raise ValueError(
-                    "DataLoader with IterableDataset: expected unspecified "
-                    "shuffle option, but got shuffle={}".format(shuffle)
+                    f"DataLoader with IterableDataset: expected unspecified shuffle option, but got shuffle={shuffle}"
                 )
             elif sampler is not None:
                 # See NOTE [ Custom Samplers and IterableDataset ]
                 raise ValueError(
-                    "DataLoader with IterableDataset: expected unspecified "
-                    "sampler option, but got sampler={}".format(sampler)
+                    f"DataLoader with IterableDataset: expected unspecified sampler option, but got sampler={sampler}"
                 )
             elif batch_sampler is not None:
                 # See NOTE [ Custom Samplers and IterableDataset ]
                 raise ValueError(
-                    "DataLoader with IterableDataset: expected unspecified "
-                    "batch_sampler option, but got batch_sampler={}".format(batch_sampler)
+                    f"DataLoader with IterableDataset: expected unspecified batch_sampler option, but got batch_sampler={batch_sampler}"
                 )
         else:
             self._dataset_kind = _DatasetKind.Map
@@ -306,13 +300,12 @@ class DataLoader(Generic[T_co]):
             if self._dataset_kind == _DatasetKind.Iterable:
                 # See NOTE [ Custom Samplers and IterableDataset ]
                 sampler = _InfiniteConstantSampler()
-            else:  # map-style
-                if shuffle:
-                    # Cannot statically verify that dataset is Sized
-                    # Somewhat related: see NOTE [ Lack of Default `__len__` in Python Abstract Base Classes ]
-                    sampler = RandomSampler(dataset, generator=generator)  # type: ignore[arg-type]
-                else:
-                    sampler = SequentialSampler(dataset)  # type: ignore[arg-type]
+            elif shuffle:
+                # Cannot statically verify that dataset is Sized
+                # Somewhat related: see NOTE [ Lack of Default `__len__` in Python Abstract Base Classes ]
+                sampler = RandomSampler(dataset, generator=generator)  # type: ignore[arg-type]
+            else:
+                sampler = SequentialSampler(dataset)  # type: ignore[arg-type]
 
         if batch_size is not None and batch_sampler is None:
             # auto_collation without custom batch_sampler
@@ -343,10 +336,8 @@ class DataLoader(Generic[T_co]):
     def _get_iterator(self) -> "_BaseDataLoaderIter":
         if self.num_workers == 0:
             return _SingleProcessDataLoaderIter(self)
-        else:
-            self.check_worker_number_rationality()
-            iter = _MultiProcessingDataLoaderIter(self)
-            return iter
+        self.check_worker_number_rationality()
+        return _MultiProcessingDataLoaderIter(self)
 
     @property
     def multiprocessing_context(self):
@@ -355,40 +346,31 @@ class DataLoader(Generic[T_co]):
     @multiprocessing_context.setter
     def multiprocessing_context(self, multiprocessing_context):
         if multiprocessing_context is not None:
-            if self.num_workers > 0:
-                if isinstance(multiprocessing_context, string_classes):
-                    valid_start_methods = multiprocessing.get_all_start_methods()
-                    if multiprocessing_context not in valid_start_methods:
-                        raise ValueError(
-                            (
-                                "multiprocessing_context option "
-                                "should specify a valid start method in {!r}, but got "
-                                "multiprocessing_context={!r}"
-                            ).format(valid_start_methods, multiprocessing_context)
-                        )
-                    # error: Argument 1 to "get_context" has incompatible type "Union[str, bytes]";
-                    # expected "str"  [arg-type]
-                    multiprocessing_context = multiprocessing.get_context(
-                        multiprocessing_context
-                    )  # type: ignore[arg-type]
-
-                if not isinstance(multiprocessing_context, python_multiprocessing.context.BaseContext):
-                    raise TypeError(
-                        (
-                            "multiprocessing_context option should be a valid context "
-                            "object or a string specifying the start method, but got "
-                            "multiprocessing_context={}"
-                        ).format(multiprocessing_context)
-                    )
-            else:
+            if self.num_workers <= 0:
                 raise ValueError(
-                    (
-                        "multiprocessing_context can only be used with "
-                        "multi-process loading (num_workers > 0), but got "
-                        "num_workers={}"
-                    ).format(self.num_workers)
+                    f"multiprocessing_context can only be used with multi-process loading (num_workers > 0), but got num_workers={self.num_workers}"
                 )
 
+            if isinstance(multiprocessing_context, string_classes):
+                valid_start_methods = multiprocessing.get_all_start_methods()
+                if multiprocessing_context not in valid_start_methods:
+                    raise ValueError(
+                        (
+                            "multiprocessing_context option "
+                            "should specify a valid start method in {!r}, but got "
+                            "multiprocessing_context={!r}"
+                        ).format(valid_start_methods, multiprocessing_context)
+                    )
+                # error: Argument 1 to "get_context" has incompatible type "Union[str, bytes]";
+                # expected "str"  [arg-type]
+                multiprocessing_context = multiprocessing.get_context(
+                    multiprocessing_context
+                )  # type: ignore[arg-type]
+
+            if not isinstance(multiprocessing_context, python_multiprocessing.context.BaseContext):
+                raise TypeError(
+                    f"multiprocessing_context option should be a valid context object or a string specifying the start method, but got multiprocessing_context={multiprocessing_context}"
+                )
         self.__multiprocessing_context = multiprocessing_context
 
     def __setattr__(self, attr, val):
@@ -401,7 +383,7 @@ class DataLoader(Generic[T_co]):
             "persistent_workers",
         ):
             raise ValueError(
-                "{} attribute should not be set after {} is " "initialized".format(attr, self.__class__.__name__)
+                f"{attr} attribute should not be set after {self.__class__.__name__} is initialized"
             )
 
         super(DataLoader, self).__setattr__(attr, val)
@@ -409,22 +391,14 @@ class DataLoader(Generic[T_co]):
     # We quote '_BaseDataLoaderIter' since it isn't defined yet and the definition can't be moved up
     # since '_BaseDataLoaderIter' references 'DataLoader'.
     def __iter__(self) -> "_BaseDataLoaderIter":
-        # When using a single worker the returned iterator should be
-        # created everytime to avoid reseting its state
-        # However, in the case of a multiple workers iterator
-        # the iterator is only created once in the lifetime of the
-        # DataLoader object so that workers can be reused
-
-        # coming from next in advance
-        if self.persistent_workers and self.num_workers > 0:
-            if self._iterator is None:
-                self._iterator = self._get_iterator()
-            else:
-                self._iterator._reset(self)
-                # returning iterator
-            return self._iterator
-        else:
+        if not self.persistent_workers or self.num_workers <= 0:
             return self._get_iterator()
+        if self._iterator is None:
+            self._iterator = self._get_iterator()
+        else:
+            self._iterator._reset(self)
+            # returning iterator
+        return self._iterator
 
     @property
     def _auto_collation(self):
@@ -437,39 +411,35 @@ class DataLoader(Generic[T_co]):
         # `.batch_sampler` if in auto-collation mode, and `.sampler` otherwise.
         # We can't change `.sampler` and `.batch_sampler` attributes for BC
         # reasons.
-        if self._auto_collation:
-            return self.batch_sampler
-        else:
-            return self.sampler
+        return self.batch_sampler if self._auto_collation else self.sampler
 
     def __len__(self) -> int:  #  noqa
-        if self._dataset_kind == _DatasetKind.Iterable:
-            # NOTE [ IterableDataset and __len__ ]
-            # For `IterableDataset`, `__len__` could be inaccurate when one naively
-            # does multi-processing data loading, since the samples will be duplicated.
-            # However, no real use case should be actually using that behavior, so
-            # it should count as a user error. We should generally trust user
-            # code to do the proper thing (e.g., configure each replica differently
-            # in `__iter__`), and give us the correct `__len__` if they choose to
-            # implement it (this will still throw if the dataset does not implement
-            # a `__len__`).
-            #
-            # To provide a further warning, we track if `__len__` was called on the
-            # `DataLoader`, save the returned value in `self._len_called`, and warn
-            # if the iterator ends up yielding more than this number of samples.
-
-            # Cannot statically verify that dataset is Sized
-            length = self._IterableDataset_len_called = len(self.dataset)  # type: ignore[assignment, arg-type]
-            if self.batch_size is not None:  # IterableDataset doesn't allow custom sampler or batch_sampler
-                from math import ceil
-
-                if self.drop_last:
-                    length = length // self.batch_size
-                else:
-                    length = ceil(length / self.batch_size)
-            return length
-        else:
+        if self._dataset_kind != _DatasetKind.Iterable:
             return len(self._index_sampler)
+        # NOTE [ IterableDataset and __len__ ]
+        # For `IterableDataset`, `__len__` could be inaccurate when one naively
+        # does multi-processing data loading, since the samples will be duplicated.
+        # However, no real use case should be actually using that behavior, so
+        # it should count as a user error. We should generally trust user
+        # code to do the proper thing (e.g., configure each replica differently
+        # in `__iter__`), and give us the correct `__len__` if they choose to
+        # implement it (this will still throw if the dataset does not implement
+        # a `__len__`).
+        #
+        # To provide a further warning, we track if `__len__` was called on the
+        # `DataLoader`, save the returned value in `self._len_called`, and warn
+        # if the iterator ends up yielding more than this number of samples.
+
+        # Cannot statically verify that dataset is Sized
+        length = self._IterableDataset_len_called = len(self.dataset)  # type: ignore[assignment, arg-type]
+        if self.batch_size is not None:  # IterableDataset doesn't allow custom sampler or batch_sampler
+            from math import ceil
+
+            if self.drop_last:
+                length //= self.batch_size
+            else:
+                length = ceil(length / self.batch_size)
+        return length
 
     def check_worker_number_rationality(self):
         # This function check whether the dataloader's worker number is rational based on
@@ -562,7 +532,9 @@ class _BaseDataLoaderIter(object):
         self._base_seed = torch.empty((), dtype=torch.int64).random_(generator=loader.generator).item()
         self._persistent_workers = loader.persistent_workers
         self._num_yielded = 0
-        self._profile_name = "enumerate(DataLoader)#{}.__next__".format(self.__class__.__name__)
+        self._profile_name = (
+            f"enumerate(DataLoader)#{self.__class__.__name__}.__next__"
+        )
 
     def __iter__(self) -> "_BaseDataLoaderIter":
         return self
@@ -589,10 +561,7 @@ class _BaseDataLoaderIter(object):
                 and self._IterableDataset_len_called is not None
                 and self._num_yielded > self._IterableDataset_len_called
             ):
-                warn_msg = (
-                    "Length of IterableDataset {} was reported to be {} (when accessing len(dataloader)), but {} "
-                    "samples have been fetched. "
-                ).format(self._dataset, self._IterableDataset_len_called, self._num_yielded)
+                warn_msg = f"Length of IterableDataset {self._dataset} was reported to be {self._IterableDataset_len_called} (when accessing len(dataloader)), but {self._num_yielded} samples have been fetched. "
                 if self._num_workers > 0:
                     warn_msg += (
                         "For multiprocessing data-loading, this could be caused by not properly configuring the "
@@ -1051,7 +1020,7 @@ class _MultiProcessingDataLoaderIter(_BaseDataLoaderIter):
         # Not that this indicates that a worker still has work to do *for this epoch*.
         # It does not mean that a worker is dead. In case of `_persistent_workers`,
         # the worker will be reset to available in the next epoch.
-        self._workers_status = [True for i in range(self._num_workers)]
+        self._workers_status = [True for _ in range(self._num_workers)]
         # We resume the prefetching in case it was enabled
         if not first_iter:
             for idx in range(self._num_workers):
@@ -1090,9 +1059,11 @@ class _MultiProcessingDataLoaderIter(_BaseDataLoaderIter):
                 if self._workers_status[worker_id] and not w.is_alive():
                     failed_workers.append(w)
                     self._mark_worker_as_unavailable(worker_id)
-            if len(failed_workers) > 0:
+            if failed_workers:
                 pids_str = ", ".join(str(w.pid) for w in failed_workers)
-                raise RuntimeError("DataLoader worker (pid(s) {}) exited unexpectedly".format(pids_str)) from e
+                raise RuntimeError(
+                    f"DataLoader worker (pid(s) {pids_str}) exited unexpectedly"
+                ) from e
             if isinstance(e, queue.Empty):
                 return (False, None)
             import tempfile
@@ -1104,7 +1075,7 @@ class _MultiProcessingDataLoaderIter(_BaseDataLoaderIter):
                 # test.
                 # See NOTE [ DataLoader on Linux and open files limit ]
                 fds_limit_margin = 10
-                fs = [tempfile.NamedTemporaryFile() for i in range(fds_limit_margin)]
+                fs = [tempfile.NamedTemporaryFile() for _ in range(fds_limit_margin)]
             except OSError as e:
                 if e.errno == errno.EMFILE:
                     raise RuntimeError(
@@ -1230,7 +1201,7 @@ class _MultiProcessingDataLoaderIter(_BaseDataLoaderIter):
             if success:
                 return data
             else:
-                raise RuntimeError("DataLoader timed out after {} seconds".format(self._timeout))
+                raise RuntimeError(f"DataLoader timed out after {self._timeout} seconds")
         elif self._pin_memory:
             while self._pin_memory_thread.is_alive():
                 success, data = self._try_get_data()

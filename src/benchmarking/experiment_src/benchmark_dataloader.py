@@ -26,16 +26,12 @@ def load_all(dataloader: DataLoader, num_batches: Optional[int] = None) -> None:
         for i, _ in enumerate(dataloader):
             if num_batches is not None and i == num_batches - 1:
                 break
-            pass
-    except (StopIteration, EOFError) as e:
-        logging.info(f"Exception raised : {e}")
     except Exception as e:
         logging.info(f"Exception raised : {e}")
 
 
 def collate(batch: List) -> Tensor:
-    imgs = [item for item in batch]  # noqa
-    return imgs
+    return list(batch)
 
 
 @stopwatch(trace_name="(1)-benchmark", trace_level=1)

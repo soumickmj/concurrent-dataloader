@@ -34,8 +34,7 @@ def download_one_file(bucket: str, client: boto3.client, s3_file: str):
     t_start = time.time()
     client.download_fileobj(bucket_name, s3_file, b)
     t_end = time.time()
-    result = b.getbuffer().nbytes, t_end - t_start
-    return result
+    return b.getbuffer().nbytes, t_end - t_start
 
 
 def main():
@@ -46,7 +45,7 @@ def main():
 
     file_num = 500
     rng = RandomGenerator(seed=os.getpid())
-    
+
     # Creating only one session and one client
     session = boto3.Session()
     client = session.client("s3", 
@@ -76,7 +75,7 @@ def main():
             futures = {
                 executor.submit(func, file_to_download): file_to_download for file_to_download in image_paths_to_dl
             }
-            for _, future in enumerate(as_completed(futures)):
+            for future in as_completed(futures):
                 try:
                     dl_details.append(future.result())
                 except Exception as ex:
@@ -84,7 +83,7 @@ def main():
         t_end = time.time()
 
         total_bytes = 0
-        total_time = 0 
+        total_time = 0
         [total_bytes := total_bytes + i for i, _ in dl_details]
         [total_time := total_time + j for _, j in dl_details]
 

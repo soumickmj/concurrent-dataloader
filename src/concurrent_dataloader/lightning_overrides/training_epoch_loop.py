@@ -170,10 +170,18 @@ class TrainingEpochLoop(loops.Loop[_OUTPUTS_TYPE]):
             StopIteration: When the epoch is canceled by the user returning -1
         """
         advance_timeline_id = time.time()
-        run_training_timeline_id = abs(hash(time.time())+ hash("run" + str(self.global_step)))
-        prerun_training_timeline_id = abs(hash(time.time())+ hash("prerun" + str(self.global_step)))
-        postrun_training_timeline_id = abs(hash(time.time())+ hash("postrun" + str(self.global_step)))
-        prep_training_timeline_id = abs(hash(time.time())+ hash("prep" + str(self.global_step)))
+        run_training_timeline_id = abs(
+            hash(time.time()) + hash(f"run{str(self.global_step)}")
+        )
+        prerun_training_timeline_id = abs(
+            hash(time.time()) + hash(f"prerun{str(self.global_step)}")
+        )
+        postrun_training_timeline_id = abs(
+            hash(time.time()) + hash(f"postrun{str(self.global_step)}")
+        )
+        prep_training_timeline_id = abs(
+            hash(time.time()) + hash(f"prep{str(self.global_step)}")
+        )
 
         logging.getLogger("timeline").debug(json.dumps({
             "item": "advance",
@@ -233,7 +241,7 @@ class TrainingEpochLoop(loops.Loop[_OUTPUTS_TYPE]):
             self._warning_cache.warn("train_dataloader yielded None. If this was on purpose, ignore this warning...")
             batch_output = []
         else:
-            
+
             logging.getLogger("timeline").debug(json.dumps({
                 "item": "prep_training_batch",
                 "id": prep_training_timeline_id,
@@ -275,7 +283,7 @@ class TrainingEpochLoop(loops.Loop[_OUTPUTS_TYPE]):
 
             with self.trainer.profiler.profile("run_training_batch"):
                 batch_output = self.batch_loop.run(batch, batch_idx)
-            
+
             logging.getLogger("timeline").debug(json.dumps({
             "item": "run_training_batch",
             "id": run_training_timeline_id,
@@ -351,11 +359,9 @@ class TrainingEpochLoop(loops.Loop[_OUTPUTS_TYPE]):
         Raises:
             StopIteration: if :attr:`done` evaluates to ``True`` to finish this epoch
         """
-        # -----------------------------------------
-        # VALIDATE IF NEEDED + CHECKPOINT CALLBACK
-        # -----------------------------------------
-        should_check_val = self._should_check_val_fx(self.batch_idx, self.batch_progress.is_last_batch)
-        if should_check_val:
+        if should_check_val := self._should_check_val_fx(
+            self.batch_idx, self.batch_progress.is_last_batch
+        ):
             self.trainer.validating = True
             self._run_validation()
             self.trainer.training = True
@@ -545,9 +551,7 @@ class TrainingEpochLoop(loops.Loop[_OUTPUTS_TYPE]):
 
         # in case we squeezed from 1-element array to a 0-dim array
         array = array if isinstance(array, list) else [array]
-        # remove residual empty lists
-        array = [item for item in array if not isinstance(item, list) or len(item)]
-        return array
+        return [item for item in array if not isinstance(item, list) or len(item)]
 
     def update_lr_schedulers(self, interval: str, update_plateau_schedulers: bool) -> None:
         """updates the lr schedulers based on the given interval."""
@@ -673,7 +677,7 @@ def _convert_optim_dict(outs: Dict[int, Dict[str, Any]], num_optimizers: int) ->
         >>> _convert_optim_dict({0: {"loss": 0.0}, 2: {"loss": 0.2}}, num_optimizers=3)
         [{'loss': 0.0}, None, {'loss': 0.2}]
     """
-    return [outs[opt_idx] if opt_idx in outs else None for opt_idx in range(num_optimizers)]
+    return [outs.get(opt_idx, None) for opt_idx in range(num_optimizers)]
 
 
 @overload

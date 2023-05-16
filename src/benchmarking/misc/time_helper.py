@@ -59,8 +59,8 @@ def stopwatch(trace_name, trace_level: int, strip_result: bool = False):
             if strip_result:
                 data["len"] = result[2]
             logging.getLogger("stopwatch").debug(json.dumps(data))
-            if strip_result:
-                return result[0], result[1]
-            return result
+            return (result[0], result[1]) if strip_result else result
+
         return time_profile
+
     return time_profiler

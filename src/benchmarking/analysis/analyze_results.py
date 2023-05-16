@@ -515,14 +515,18 @@ def plot_events_timeline_detailed(
         for i, (_, param_series) in enumerate(dict_dataloader.items()):
             if param_series["threading_ident"] == t:
                 last_i = i
-                lines.append([(param_series["time_start"] - min_time, i), (param_series["time_end"] - min_time, i)])
-                if highlight_thread is not None:
-                    if param_series["threading_ident"] == highlight_thread:
-                        colors.append("black")
-                    else:
-                        colors.append("red")
-                else:
+                lines.append(
+                    [
+                        (param_series["time_start"] - min_time, last_i),
+                        (param_series["time_end"] - min_time, last_i),
+                    ]
+                )
+                if highlight_thread is None:
                     colors.append(color_list[param_series["threading_ident"]])
+                elif param_series["threading_ident"] == highlight_thread:
+                    colors.append("black")
+                else:
+                    colors.append("red")
         lines.append([(0, last_i), (max_time, last_i)])
         texts.append((thread_runtimes[t], 0, last_i))
         colors.append("silver")
@@ -570,11 +574,7 @@ def extract_pandas(
         results = pd.DataFrame.from_records(data=results)
 
         for k, v in metadata.items():
-            if not isinstance(v, (int, float, complex)):
-                results[k] = str(v)
-            else:
-                results[k] = v
-
+            results[k] = str(v) if not isinstance(v, (int, float, complex)) else v
         results["source_file"] = working_file_path
         results["run"] = working_file_path.parent.name
 
@@ -622,21 +622,23 @@ def extract_gpuutil(output_base_folder: Path,
         results = parse_results_log(working_file_path)
         if len(results) == 0:
             continue
+        lines = []
         if ms:
             results = results[skip:]
             if not header:
                 format_string = "%Y/%m/%d %H:%M:%S.%f"
                 for i in results[0]["gpu_data"]:
-                    header.append(f"gpu_util_{i}")
-                    header.append(f"mem_util_{i}")
-                    header.append(f"timestamp_{i}")
+                    header.extend((f"gpu_util_{i}", f"mem_util_{i}", f"timestamp_{i}"))
                 header.append("run")
-            lines = []
             for result in results:
                 line = []
                 for item in result["gpu_data"]:
-                    line.append(result["gpu_data"][item]["gpu_util"])
-                    line.append(result["gpu_data"][item]["mem_util"])
+                    line.extend(
+                        (
+                            result["gpu_data"][item]["gpu_util"],
+                            result["gpu_data"][item]["mem_util"],
+                        )
+                    )
                     time = result["gpu_data"][item]["timestamp"]
                     time = datetime.strptime(time.strip(), format_string)
                     line.append(time.timestamp())
@@ -646,16 +648,17 @@ def extract_gpuutil(output_base_folder: Path,
             if not header:
                 header.append("timestamp")
                 for i in results[0]["gpu_data"]:
-                    header.append(f"gpu_util_{i}")
-                    header.append(f"mem_util_{i}")
+                    header.extend((f"gpu_util_{i}", f"mem_util_{i}"))
                 header.append("run")
-            lines = []
             for result in results:
-                line = []
-                line.append(result["timestamp"])
+                line = [result["timestamp"]]
                 for item in result["gpu_data"]:
-                    line.append(result["gpu_data"][item]["gpu_util"])
-                    line.append(result["gpu_data"][item]["mem_util"])
+                    line.extend(
+                        (
+                            result["gpu_data"][item]["gpu_util"],
+                            result["gpu_data"][item]["mem_util"],
+                        )
+                    )
                 line.append(working_file_path.parent.name)
                 lines.append(line)
         results = pd.DataFrame.from_records(lines)
@@ -713,9 +716,9 @@ def show_timelines(df, run, lanes, colors, flat=False, zoom=False, zoom_epochs=1
     end = max(df["end_time_y"])
 
     total_runtime = end - start
-    number_of_epochs = 20
-
     if zoom:
+        number_of_epochs = 20
+
         df = df[df["start_time_x"] < start + ((total_runtime / number_of_epochs) * zoom_epochs)]
 
     i = 0
@@ -783,44 +786,41 @@ def get_colors_runs_and_lanes(df):
     named_colors = ["green", "orange", "lawngreen", "black", "gray", "teal"]
     unique_functions = np.unique(df["item_x"])
 
-    # ensure that special functions (same for both Lightning and Torch approach) are always plotted in the same color
-    colors = {}
     special_functions = ["batch", "training_batch_to_device", "run_training_batch"]
     unique_functions = np.setdiff1d(unique_functions, special_functions)
 
-    for i, color in zip(special_functions, ["red", "magenta", "blue"]):
-        colors[str(i)] = color
+    colors = {
+        str(i): color
+        for i, color in zip(special_functions, ["red", "magenta", "blue"])
+    }
     for i, color in zip(unique_functions, named_colors):
         colors[str(i)] = color    
 
-    lanes={}
-    for i, lane in zip(unique_functions, range(len(unique_functions))):
-        lanes[str(i)] = lane
+    lanes = {
+        str(i): lane
+        for i, lane in zip(unique_functions, range(len(unique_functions)))
+    }
     unique_runs = np.unique(df["run"])
     unique_functions = [*unique_functions, *special_functions]
     return unique_runs, unique_functions, colors, lanes
 
 def show_timelines_with_gpu(df, gpu_util, lanes, colors, run, flat=False, show_gpu=False, zoom=False, 
                             zoom_epochs=1, gpu_index="2", skip_plot=False, ms=False, fig_params=None, skip_title=False):
-    fig, ax = None, None
-    if not skip_plot:
-        fig, ax = plt.subplots(figsize=(30, 25))
+    fig, ax = plt.subplots(figsize=(30, 25)) if not skip_plot else (None, None)
     if fig_params is None:
         plt.rcParams.update({"font.size": 18})
     else:
         plt.rcParams.update(fig_params)
     start = min(df["start_time_x"])
     end = max(df["end_time_y"])
-    ts = "timestamp"
-    if ms:
-        ts = f"timestamp_{gpu_index}"
+    ts = f"timestamp_{gpu_index}" if ms else "timestamp"
     print(ts, ms)
     gpu_start = min(gpu_util[ts])
 
     total_runtime = end - start
-    number_of_epochs = 20
-
     if zoom:
+        number_of_epochs = 20
+
         df = df[df["start_time_x"] < start + ((total_runtime / number_of_epochs) * zoom_epochs)]
         gpu_util = gpu_util[gpu_util[ts] < gpu_start + ((total_runtime / number_of_epochs) * zoom_epochs)]
 
@@ -863,7 +863,7 @@ def show_timelines_with_gpu(df, gpu_util, lanes, colors, run, flat=False, show_g
     gpu_util_zeros = 0
     mem_util_mean_no_zeros = 0
     mem_util_mean = 0
-    
+
     gpu_util_zeros = (len(gpu_util[gpu_util[f"gpu_util_{gpu_index}"] == 0][f"gpu_util_{gpu_index}"]) / len(gpu_util[f"gpu_util_{gpu_index}"])) * 100
     gpu_util_mean_no_zeros = np.mean(gpu_util[gpu_util[f"gpu_util_{gpu_index}"] > 0][f"gpu_util_{gpu_index}"])
     mem_util_mean = np.mean(gpu_util[f"mem_util_{gpu_index}"])
@@ -875,9 +875,7 @@ def show_timelines_with_gpu(df, gpu_util, lanes, colors, run, flat=False, show_g
 
         r"{\fontsize{50pt}{3em}\selectfont{}a}{\fontsize{20pt}{3em}\selectfont{}N"
         ax2.set_ylim([-3, 103])
-        gpu_events = []
-        for i in gpu_util[ts]:
-            gpu_events.append(i - start)
+        gpu_events = [i - start for i in gpu_util[ts]]
         ax2.plot(gpu_events, gpu_util[f"gpu_util_{gpu_index}"], color="cyan", linestyle="--", linewidth=2)
         ax2.plot(gpu_events, gpu_util[f"mem_util_{gpu_index}"], color="maroon", linestyle="--", linewidth=2)
         ax2.plot(
@@ -892,7 +890,7 @@ def show_timelines_with_gpu(df, gpu_util, lanes, colors, run, flat=False, show_g
     gpu_util = ""
     if show_gpu:
         gpu_util = f"GPU unused: {round(gpu_util_zeros, 2)} %, mean GPU usage: {round(gpu_util_mean_no_zeros, 2)} %",
- 
+
     if not skip_plot:
         ax.set_title(
             f"Total runtime per operation \n Implementation: {filename[9]},"
@@ -904,7 +902,7 @@ def show_timelines_with_gpu(df, gpu_util, lanes, colors, run, flat=False, show_g
         )
 
     plt.show()
- 
+
     return {
         "runtime": end - start,
         "gpu_util_zero": gpu_util_zeros,

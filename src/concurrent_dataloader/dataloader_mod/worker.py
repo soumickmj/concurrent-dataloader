@@ -88,14 +88,14 @@ class WorkerInfo(object):
 
     def __setattr__(self, key, val):
         if self.__initialized:
-            raise RuntimeError("Cannot assign attributes to {} objects".format(self.__class__.__name__))
+            raise RuntimeError(
+                f"Cannot assign attributes to {self.__class__.__name__} objects"
+            )
         return super(WorkerInfo, self).__setattr__(key, val)
 
     def __repr__(self):
-        items = []
-        for k in self.__keys:
-            items.append("{}={}".format(k, getattr(self, k)))
-        return "{}({})".format(self.__class__.__name__, ", ".join(items))
+        items = [f"{k}={getattr(self, k)}" for k in self.__keys]
+        return f'{self.__class__.__name__}({", ".join(items)})'
 
 
 def get_worker_info():
@@ -227,7 +227,6 @@ def _generate_state(base_seed, worker_id):
 # // Modified: added for logging
 # flake8: noqa: C901
 @stopwatch(trace_name="(3)-worker_loop", trace_level=3)
-# \\
 def _worker_loop(
     dataset_kind,
     dataset,
@@ -293,7 +292,9 @@ def _worker_loop(
             )
             # \\
         except Exception:
-            init_exception = ExceptionWrapper(where="in DataLoader worker process {}".format(worker_id))
+            init_exception = ExceptionWrapper(
+                where=f"in DataLoader worker process {worker_id}"
+            )
 
         # When using Iterable mode, some worker can exit earlier than others due
         # to the IterableDataset behaving differently for different workers.
@@ -344,12 +345,8 @@ def _worker_loop(
                 try:
                     # // Modified: using threading to parallelize fetching
                     if fetch_impl == "threaded":
-                        batch_sizes = {}  # store the size of each batch (not always the same, e.g. last batch)
-                        batches = {}  # batch data
-                        # take r (that was already read)
-                        batch_sizes[idx] = len(index)
-                        for i in index:
-                            batches[i] = idx
+                        batch_sizes = {idx: len(index)}
+                        batches = {i: idx for i in index}
                         logging.getLogger("timeline").debug(
                             json.dumps({"item": "batch", "id": idx + start_time, "start_time": time.time()})
                         )
@@ -374,7 +371,7 @@ def _worker_loop(
                                 json.dumps({"item": "batch", "id": batch_id + start_time, "end_time": time.time()})
                             )
                             data_queue.put((batch_id, b))
-                        # \\
+                                            # \\
                     else:
                         # // Modified: for enhanced logging
                         timeline_batch_id = abs(hash(time.time() + float(os.getpid())))
@@ -397,7 +394,7 @@ def _worker_loop(
                         # It is important that we don't store exc_info in a variable.
                         # `ExceptionWrapper` does the correct thing.
                         # See NOTE [ Python Traceback Reference Cycle Problem ]
-                        data = ExceptionWrapper(where="in DataLoader worker process {}".format(worker_id))
+                        data = ExceptionWrapper(where=f"in DataLoader worker process {worker_id}")
             # // Modified: once collected, return a batch and cleanup
             if fetch_impl != "threaded":
                 data_queue.put((idx, data))
