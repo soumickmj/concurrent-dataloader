@@ -36,14 +36,11 @@ class MPLoading:
         img_to_load = image_path_list[num]
         logging.debug(f"Opening local random image: {img_to_load}, rn: {num}")
         image = Image.open(img_to_load)
-        if self.use_image:
-            return image
-        return self.just_tensor_load(image)
+        return image if self.use_image else self.just_tensor_load(image)
 
     @stopwatch(trace_name="(2)-just_tensor_load", trace_level=2, strip_result=False)
     def just_tensor_load(self, image):
-        image_tensor = transform(image).cuda(self.device)
-        return image_tensor
+        return transform(image).cuda(self.device)
 
     @stopwatch(trace_name="(3)-open_random_batch", trace_level=3, strip_result=False)
     def open_random_batch(self):
@@ -76,9 +73,7 @@ class MPLoading:
         img_to_load = image_path_list[0]
         # logging.debug(f"Opening local image: {img_to_load}")
         image = Image.open(img_to_load)
-        # perform transforms and send to GPU
-        image_tensor = transform(image).cuda(self.device)
-        return image_tensor
+        return transform(image).cuda(self.device)
 
     @stopwatch(trace_name="(4)-create_tensor", trace_level=4, strip_result=False)
     def load_random_tensor_on_gpu(self) -> None:

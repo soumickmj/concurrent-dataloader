@@ -23,7 +23,7 @@ def dump_metadata(args, output_base_folder):
     with (output_base_folder / "metadata.json").open("w") as f:
         metadata = vars(args).copy()
         metadata["output_base_folder"] = metadata["output_base_folder"].name
-        metadata.update(platform.uname()._asdict())
+        metadata |= platform.uname()._asdict()
         json.dump(metadata, f)
 
 
@@ -34,7 +34,7 @@ def parse_args_file(json_file, dataset_type):
             del json_args[arg]
         elif "file_download_url" in arg:
             # rename the key
-            json_args[arg.replace(dataset_type + "_", "")] = json_args.pop(arg)
+            json_args[arg.replace(f"{dataset_type}_", "")] = json_args.pop(arg)
     return json_args
 
 
@@ -49,16 +49,17 @@ def get_dataset(
     s3_credential_file: Optional[str] = None,
     flavor: Optional[str] = None,
 ):
-    if dataset == "s3" or dataset == "ceph-os":
+    if dataset in {"s3", "ceph-os"}:
         if use_cache == 1:
             use_cache = True
             endpoint = "http://localhost:6081" # for CEPH Object Store this needs to be changed to different address 
         else:
             use_cache = False
-            if dataset == "ceph-os":
-                endpoint = "http://10.0.2.1:80"
-            else:
-                endpoint = "http://s3.amazonaws.com"
+            endpoint = (
+                "http://10.0.2.1:80"
+                if dataset == "ceph-os"
+                else "http://s3.amazonaws.com"
+            )
         dataset = S3Dataset(
             # TODO magic constants... extract to cli... how to do in a generic way...
             **parse_args_file(s3_credential_file, dataset_type),

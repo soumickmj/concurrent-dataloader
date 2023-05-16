@@ -53,8 +53,7 @@ def get_s3_bucket(
     if retries >= 100:
         raise InterruptedError("Max retries for creating of s3_client reached!")
 
-    s3_bucket = s3_client.Bucket(bucket_name)
-    return s3_bucket
+    return s3_client.Bucket(bucket_name)
 
 
 class RandomGenerator:
@@ -75,10 +74,10 @@ class Downloader:
 
         self.bucket_name = "iarai-playground"
         self.local_path = "/iarai/home/ivan.svogor/temp/imagenet"
-        
+
         # CEPH-OS
 
-        if mode == "ceph-os" or mode == "local":
+        if mode in ["ceph-os", "local"]:
             self.aws_access_key_id = "5TUO0NL0QYOVEW7AZZLT"
             self.aws_secret_access_key = "B2M1wP79AjZselDkTYZHYFppaemhiIiSesO0Luov"
             self.endpoint_url = "http://10.0.2.1:80"
@@ -138,11 +137,9 @@ class Downloader:
             if b.getbuffer().nbytes == 0:
                 raise Exception("Downloaded object has size 0.")
             return b.getbuffer().nbytes
-        elif self.mode == "local":
+        else:
             img = Image.open(self.local_path + "/" + image_path)
             return len(img.fp.read())
-        else:
-            raise Exception("Unknown mode")
 
     def __len__(self):
         return len(self.image_paths)
@@ -150,22 +147,24 @@ class Downloader:
 
 def threaded(dl, file_num):
     result = []
-    threads = []
     result_queue = queue.Queue()
-    for _ in range(file_num):
-        threads.append(threading.Thread(target=dl.get_random_item, args=(result_queue,)))
+    threads = [
+        threading.Thread(target=dl.get_random_item, args=(result_queue,))
+        for _ in range(file_num)
+    ]
     [t.start() for t in threads]
     [t.join() for t in threads]
     while not result_queue.empty():
-        result.append(result_queue.get())  
+        result.append(result_queue.get())
     return result
 
 def mp_threaded(dl, file_num, mp_q):
     print(f"Download {file_num}")
-    threads = []
     result_queue = queue.Queue()
-    for _ in range(file_num):
-        threads.append(threading.Thread(target=dl.get_random_item, args=(result_queue,)))
+    threads = [
+        threading.Thread(target=dl.get_random_item, args=(result_queue,))
+        for _ in range(file_num)
+    ]
     [t.start() for t in threads]
     [t.join() for t in threads]
     while not result_queue.empty():

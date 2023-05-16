@@ -41,7 +41,9 @@ class _IterableDatasetFetcher(_BaseDatasetFetcher):
                     data.append(next(self.dataset_iter))
                 except StopIteration:
                     break
-            if len(data) == 0 or (self.drop_last and len(data) < len(possibly_batched_index)):
+            if not data or (
+                self.drop_last and len(data) < len(possibly_batched_index)
+            ):
                 raise StopIteration
         else:
             data = next(self.dataset_iter)
@@ -137,9 +139,7 @@ class _AsyncMapDatasetFetcher(_BaseDatasetFetcher):
            a list of tensor objects (fetched items, by the dataset.__getitem__
            and with the predefined transformations applied)
         """
-        # create a future that waits for all tasks to complete
-        result = self.loop.run_until_complete(self.initiate_fetch_tasks(batch_indices))
-        return result
+        return self.loop.run_until_complete(self.initiate_fetch_tasks(batch_indices))
 
 
 # \\
@@ -186,8 +186,7 @@ class _ThreadedMapDatasetFetcher(_BaseDatasetFetcher):
             for future in concurrent.futures.as_completed(futures):
                 data = futures[future]
                 try:
-                    data = future.result()
-                    yield data
+                    yield future.result()
                 except Exception as exc:
                     print(f"Exception in fetcher: {str(exc)}")
 

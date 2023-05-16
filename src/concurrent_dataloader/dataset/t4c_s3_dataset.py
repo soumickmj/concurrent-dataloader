@@ -38,10 +38,7 @@ def load_h5_file(file_path: Union[str, Path], sl: Optional[slice] = None, to_tor
     # load
     with h5py.File(str(file_path) if isinstance(file_path, Path) else file_path, "r") as fr:
         data = fr.get("array")
-        if sl is not None:
-            data = np.array(data[sl])
-        else:
-            data = np.array(data)
+        data = np.array(data[sl]) if sl is not None else np.array(data)
         if to_torch:
             data = torch.from_numpy(data)
             data = data.to(dtype=torch.float)
@@ -145,10 +142,7 @@ class T4CDataset(S3Dataset):
         self.transform = transform
 
     def _load_h5_file(self, fn, sl: Optional[slice]):
-        if self.use_npy:
-            return np.load(fn)
-        else:
-            return load_h5_file(fn, sl=sl)
+        return np.load(fn) if self.use_npy else load_h5_file(fn, sl=sl)
 
     def __len__(self):
         size_240_slots_a_day = len(self.image_paths) * MAX_TEST_SLOT_INDEX

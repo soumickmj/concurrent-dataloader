@@ -47,8 +47,7 @@ def get_s3_bucket(
     if retries >= 100:
         raise InterruptedError("Max retries for creating of s3_client reached!")
 
-    s3_bucket = s3_client.Bucket(bucket_name)
-    return s3_bucket
+    return s3_client.Bucket(bucket_name)
 
 
 def upload_file_to_s3_url(

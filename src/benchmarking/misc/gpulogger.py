@@ -61,22 +61,23 @@ class GPUSidecarLoggerMs:
         )
 
     def stop(self):
-        if self.sp is not None:
-            os.killpg(os.getpgid(self.sp.pid), signal.SIGTERM)
-            with open(self.out_file.name, "r") as f:
-                gpu_usage = {}
-                for line in f.readlines():
-                    line = line.rstrip()
-                    line = line.replace("%", "").split(",")
-                    if len(line) > 1:
-                        gpu_usage[line[0]] = {
-                            "gpu": line[1],
-                            "temp": float(line[2]),
-                            "gpu_util": float(line[3]),
-                            "mem_util": float(line[4]),
-                            "timestamp": str(line[5]),
-                        }
-                        logging.getLogger("gpuutil").debug(json.dumps({"gpu_data": gpu_usage}))
+        if self.sp is None:
+            return
+        os.killpg(os.getpgid(self.sp.pid), signal.SIGTERM)
+        with open(self.out_file.name, "r") as f:
+            gpu_usage = {}
+            for line in f:
+                line = line.rstrip()
+                line = line.replace("%", "").split(",")
+                if len(line) > 1:
+                    gpu_usage[line[0]] = {
+                        "gpu": line[1],
+                        "temp": float(line[2]),
+                        "gpu_util": float(line[3]),
+                        "mem_util": float(line[4]),
+                        "timestamp": str(line[5]),
+                    }
+                    logging.getLogger("gpuutil").debug(json.dumps({"gpu_data": gpu_usage}))
 
 if __name__ == "__main__":
     refresh_rate = 0.5
